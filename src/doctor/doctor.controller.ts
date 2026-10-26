@@ -8,12 +8,15 @@ import {
   Param,
   Body,
   ParseIntPipe,
-} from '@nestjs/common';
-import { DoctorService } from './doctor.service';
+  Inject,
+  } from '@nestjs/common';
 
 @Controller('doctors')
 export class DoctorController {
-  constructor(private doctorService: DoctorService) {}
+  constructor(
+    @Inject(DoctorService)
+    private readonly doctorService: DoctorService,
+  ) {}
 
   @Get()
   findAll() {
