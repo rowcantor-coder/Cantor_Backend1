@@ -13,7 +13,10 @@ import { DepartmentService } from './department.service';
 
 @Controller('departments')
 export class DepartmentController {
-  constructor(private departmentService: DepartmentService) {}
+  constructor(
+  @Inject(DepartmentService)
+  private readonly departmentService: DepartmentService,
+  ) {}
 
   @Get()
   findAll() {
