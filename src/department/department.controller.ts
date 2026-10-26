@@ -8,6 +8,7 @@ import {
   Param,
   Body,
   ParseIntPipe,
+  Inject,
 } from '@nestjs/common';
 import { DepartmentService } from './department.service';
 
