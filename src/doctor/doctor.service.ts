@@ -1,23 +1,38 @@
 
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
+import { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 @Injectable()
 export class DoctorService {
-  constructor(private databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: DatabaseService) {}
 
   async findAll() {
-    const [rows] = await this.databaseService
-      .getPool()
-      .query('SELECT * FROM doctor');
+    const pool = this.databaseService.getPool();
+
+    // Diagnostic logs para malaman ang database at bilang ng doctors
+    const [dbRows] = await pool.query<RowDataPacket[]>(
+      'SELECT DATABASE() AS databaseName',
+    );
+
+    console.log('Doctors API database:', dbRows[0]?.databaseName);
+
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM doctor',
+    );
+
+    console.log('Doctors returned:', rows.length);
 
     return rows;
   }
 
   async findOne(id: number) {
-    const [rows]: any = await this.databaseService
+    const [rows] = await this.databaseService
       .getPool()
-      .query('SELECT * FROM doctor WHERE doctor_id = ?', [id]);
+      .query<RowDataPacket[]>(
+        'SELECT * FROM doctor WHERE doctor_id = ?',
+        [id],
+      );
 
     if (rows.length === 0) {
       throw new NotFoundException('Doctor not found');
@@ -31,12 +46,12 @@ export class DoctorService {
     specialization: string;
     department_id: number;
   }) {
-    const [result]: any = await this.databaseService
-      .getPool()
-      .query(
-        'INSERT INTO doctor (doctor_name, specialization, department_id) VALUES (?, ?, ?)',
-        [data.doctor_name, data.specialization, data.department_id],
-      );
+    const [result] = await this.databaseService.getPool().query<ResultSetHeader>(
+      `INSERT INTO doctor
+       (doctor_name, specialization, department_id)
+       VALUES (?, ?, ?)`,
+      [data.doctor_name, data.specialization, data.department_id],
+    );
 
     return this.findOne(result.insertId);
   }
@@ -52,7 +67,9 @@ export class DoctorService {
     await this.findOne(id);
 
     await this.databaseService.getPool().query(
-      'UPDATE doctor SET doctor_name = ?, specialization = ?, department_id = ? WHERE doctor_id = ?',
+      `UPDATE doctor
+       SET doctor_name = ?, specialization = ?, department_id = ?
+       WHERE doctor_id = ?`,
       [
         data.doctor_name,
         data.specialization,
