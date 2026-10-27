@@ -1,5 +1,5 @@
 
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, ConflictException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { RowDataPacket, OkPacket } from 'mysql2';
 import * as bcrypt from 'bcryptjs';
@@ -13,57 +13,66 @@ export class UsersService {
 
   private pool = () => this.db.getPool();
 
-  async createUser(username: string, password: string, role = 'user') {
+  async createUser(
+    username: string,
+    password: string,
+    role = 'user',
+    email = '',
+  ) {
+    if (!email.trim()) {
+      throw new Error('Email is required for registration');
+    }
+
+    const [existing] = await this.pool().execute<RowDataPacket[]>(
+      'SELECT user_id FROM users WHERE username = ? OR email = ?',
+      [username, email],
+    );
+
+    if (existing.length > 0) {
+      throw new ConflictException('Username or email already exists');
+    }
+
     const hashed = await bcrypt.hash(password, 10);
 
     const [result] = await this.pool().execute<OkPacket>(
-      'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-      [username, hashed, role],
+      `INSERT INTO users (username, email, password, role)
+       VALUES (?, ?, ?, ?)`,
+      [username, email, hashed, role],
     );
 
-    return { id: result.insertId, username, role };
+    return {
+      id: result.insertId,
+      username,
+      email,
+      role,
+    };
   }
 
   async findByUsername(username: string) {
-    // Temporary diagnostics: check the database and table columns.
-    const [dbRows] = await this.pool().query<RowDataPacket[]>(
-      'SELECT DATABASE() AS dbName',
-    );
-
-    const [columns] = await this.pool().query<RowDataPacket[]>(
-      'SHOW COLUMNS FROM users',
-    );
-
-    console.log('Login diagnostic database:', dbRows[0]?.dbName);
-    console.log(
-      'Login diagnostic columns:',
-      columns.map((column) => column.Field),
-    );
-
     const [rows] = await this.pool().execute<RowDataPacket[]>(
-      `SELECT user_id AS id, username, password, role, refresh_token
+      `SELECT user_id AS id, username, email, password, role, refresh_token
        FROM users
        WHERE username = ?`,
       [username],
     );
 
-    return rows[0];
+    return rows[0] ?? null;
   }
 
   async findById(id: number) {
     const [rows] = await this.pool().execute<RowDataPacket[]>(
-      `SELECT user_id AS id, username, role, created_at
+      `SELECT user_id AS id, username, email, role, created_at
        FROM users
        WHERE user_id = ?`,
       [id],
     );
 
-    return rows[0];
+    return rows[0] ?? null;
   }
 
   async getAll() {
     const [rows] = await this.pool().execute<RowDataPacket[]>(
-      `SELECT user_id AS id, username, role, created_at
+      `SELECT user_id AS id, username, email, role, created_at
        FROM users`,
     );
 
@@ -72,7 +81,12 @@ export class UsersService {
 
   async updateUser(
     id: number,
-    partial: { username?: string; password?: string; role?: string },
+    partial: {
+      username?: string;
+      email?: string;
+      password?: string;
+      role?: string;
+    },
   ) {
     const fields: string[] = [];
     const values: any[] = [];
@@ -82,10 +96,14 @@ export class UsersService {
       values.push(partial.username);
     }
 
+    if (partial.email) {
+      fields.push('email = ?');
+      values.push(partial.email);
+    }
+
     if (partial.password) {
-      const hashed = await bcrypt.hash(partial.password, 10);
       fields.push('password = ?');
-      values.push(hashed);
+      values.push(await bcrypt.hash(partial.password, 10));
     }
 
     if (partial.role) {
@@ -100,9 +118,7 @@ export class UsersService {
     values.push(id);
 
     await this.pool().execute(
-      `UPDATE users
-       SET ${fields.join(', ')}
-       WHERE user_id = ?`,
+      `UPDATE users SET ${fields.join(', ')} WHERE user_id = ?`,
       values,
     );
 
@@ -133,6 +149,6 @@ export class UsersService {
       [refreshToken],
     );
 
-    return rows[0];
+    return rows[0] ?? null;
   }
 }
