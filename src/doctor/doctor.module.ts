@@ -7,13 +7,7 @@ import { DoctorService } from './doctor.service';
 @Module({
   imports: [DatabaseModule],
   controllers: [DoctorController],
-  providers: [
-    {
-      provide: 'DoctorService',
-      useClass: DoctorService,
-    },
-    DoctorService,
-  ],
+  providers: [DoctorService],
   exports: [DoctorService],
 })
 export class DoctorModule {}
