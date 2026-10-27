@@ -1,12 +1,15 @@
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { RowDataPacket, OkPacket } from 'mysql2';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
-  constructor(private db: DatabaseService) {}
+  constructor(
+  @Inject(DatabaseService)
+  private readonly db: DatabaseService,
+  ) {}
 
   private pool = () => this.db.getPool();
 
