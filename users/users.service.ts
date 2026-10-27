@@ -7,8 +7,8 @@ import * as bcrypt from 'bcryptjs';
 @Injectable()
 export class UsersService {
   constructor(
-  @Inject(DatabaseService)
-  private readonly db: DatabaseService,
+    @Inject(DatabaseService)
+    private readonly db: DatabaseService,
   ) {}
 
   private pool = () => this.db.getPool();
@@ -25,9 +25,25 @@ export class UsersService {
   }
 
   async findByUsername(username: string) {
+    // Temporary diagnostics: check the database and table columns.
+    const [dbRows] = await this.pool().query<RowDataPacket[]>(
+      'SELECT DATABASE() AS dbName',
+    );
+
+    const [columns] = await this.pool().query<RowDataPacket[]>(
+      'SHOW COLUMNS FROM users',
+    );
+
+    console.log('Login diagnostic database:', dbRows[0]?.dbName);
+    console.log(
+      'Login diagnostic columns:',
+      columns.map((column) => column.Field),
+    );
+
     const [rows] = await this.pool().execute<RowDataPacket[]>(
       `SELECT user_id AS id, username, password, role, refresh_token
-       FROM users WHERE username = ?`,
+       FROM users
+       WHERE username = ?`,
       [username],
     );
 
@@ -37,7 +53,8 @@ export class UsersService {
   async findById(id: number) {
     const [rows] = await this.pool().execute<RowDataPacket[]>(
       `SELECT user_id AS id, username, role, created_at
-       FROM users WHERE user_id = ?`,
+       FROM users
+       WHERE user_id = ?`,
       [id],
     );
 
@@ -46,7 +63,8 @@ export class UsersService {
 
   async getAll() {
     const [rows] = await this.pool().execute<RowDataPacket[]>(
-      `SELECT user_id AS id, username, role, created_at FROM users`,
+      `SELECT user_id AS id, username, role, created_at
+       FROM users`,
     );
 
     return rows;
@@ -82,7 +100,9 @@ export class UsersService {
     values.push(id);
 
     await this.pool().execute(
-      `UPDATE users SET ${fields.join(', ')} WHERE user_id = ?`,
+      `UPDATE users
+       SET ${fields.join(', ')}
+       WHERE user_id = ?`,
       values,
     );
 
@@ -108,7 +128,8 @@ export class UsersService {
   async findByRefreshToken(refreshToken: string) {
     const [rows] = await this.pool().execute<RowDataPacket[]>(
       `SELECT user_id AS id, username, role
-       FROM users WHERE refresh_token = ?`,
+       FROM users
+       WHERE refresh_token = ?`,
       [refreshToken],
     );
 
