@@ -5,23 +5,29 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 @Injectable()
 export class DoctorService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+  ) {}
 
   async findAll() {
     const pool = this.databaseService.getPool();
 
-    // Diagnostic logs para malaman ang database at bilang ng doctors
-    const [dbRows] = await pool.query<RowDataPacket[]>(
-      'SELECT DATABASE() AS databaseName',
-    );
+    // Check kung anong database at account ang ginagamit ng Render
+    const [diagnostics] = await pool.query<RowDataPacket[]>(`
+      SELECT
+        DATABASE() AS databaseName,
+        CURRENT_USER() AS authenticatedUser,
+        (SELECT COUNT(*) FROM doctor) AS totalDoctors
+    `);
 
-    console.log('Doctors API database:', dbRows[0]?.databaseName);
+    console.log('DOCTOR DATABASE DIAGNOSTICS:', diagnostics[0]);
 
+    // Kunin lahat ng doctor records
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT * FROM doctor',
+      'SELECT * FROM doctor ORDER BY doctor_id',
     );
 
-    console.log('Doctors returned:', rows.length);
+    console.log('DOCTORS RETURNED:', rows.length);
 
     return rows;
   }
@@ -46,12 +52,18 @@ export class DoctorService {
     specialization: string;
     department_id: number;
   }) {
-    const [result] = await this.databaseService.getPool().query<ResultSetHeader>(
-      `INSERT INTO doctor
-       (doctor_name, specialization, department_id)
-       VALUES (?, ?, ?)`,
-      [data.doctor_name, data.specialization, data.department_id],
-    );
+    const [result] = await this.databaseService
+      .getPool()
+      .query<ResultSetHeader>(
+        `INSERT INTO doctor
+          (doctor_name, specialization, department_id)
+         VALUES (?, ?, ?)`,
+        [
+          data.doctor_name,
+          data.specialization,
+          data.department_id,
+        ],
+      );
 
     return this.findOne(result.insertId);
   }
@@ -88,6 +100,8 @@ export class DoctorService {
       .getPool()
       .query('DELETE FROM doctor WHERE doctor_id = ?', [id]);
 
-    return { message: 'Doctor deleted successfully' };
+    return {
+      message: 'Doctor deleted successfully',
+    };
   }
 }
