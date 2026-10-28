@@ -1,5 +1,10 @@
 
-import { Injectable, Inject, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { RowDataPacket, OkPacket } from 'mysql2';
 import * as bcrypt from 'bcryptjs';
@@ -29,7 +34,9 @@ export class UsersService {
     );
 
     if (existing.length > 0) {
-      throw new ConflictException('Username or email already exists');
+      throw new ConflictException(
+        'Username or email already exists',
+      );
     }
 
     const hashed = await bcrypt.hash(password, 10);
@@ -67,7 +74,11 @@ export class UsersService {
       [id],
     );
 
-    return rows[0] ?? null;
+    if (!rows[0]) {
+      throw new NotFoundException('User not found');
+    }
+
+    return rows[0];
   }
 
   async getAll() {
@@ -93,12 +104,12 @@ export class UsersService {
 
     if (partial.username) {
       fields.push('username = ?');
-      values.push(partial.username);
+      values.push(partial.username.trim());
     }
 
     if (partial.email) {
       fields.push('email = ?');
-      values.push(partial.email);
+      values.push(partial.email.trim());
     }
 
     if (partial.password) {
@@ -117,10 +128,14 @@ export class UsersService {
 
     values.push(id);
 
-    await this.pool().execute(
+    const [result] = await this.pool().execute<OkPacket>(
       `UPDATE users SET ${fields.join(', ')} WHERE user_id = ?`,
       values,
     );
+
+    if (result.affectedRows === 0) {
+      return this.findById(id);
+    }
 
     return this.findById(id);
   }
@@ -131,10 +146,17 @@ export class UsersService {
       [id],
     );
 
-    return result.affectedRows > 0;
+    if (result.affectedRows === 0) {
+      throw new NotFoundException('User not found');
+    }
+
+    return { message: 'User deleted successfully' };
   }
 
-  async setRefreshToken(id: number, refreshToken: string | null) {
+  async setRefreshToken(
+    id: number,
+    refreshToken: string | null,
+  ) {
     await this.pool().execute(
       'UPDATE users SET refresh_token = ? WHERE user_id = ?',
       [refreshToken, id],
